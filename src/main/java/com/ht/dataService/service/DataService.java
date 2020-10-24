@@ -1,5 +1,10 @@
 package com.ht.dataService.service;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.ht.dataService.model.Data;
 import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.CookieStore;
@@ -27,9 +32,7 @@ public class DataService {
     public void run(){
         String loginURL = "https://jinggai.bxzykj.com/hanhai/login/loginCheck";
         String dataURL = "https://jinggai.bxzykj.com/hanhai/getOtherLogsList";
-        String URL = "http://www.baidu.com";
         CookieStore cookieStore = new BasicCookieStore();
-//        CloseableHttpClient httpClient = HttpClientBuilder.create().build();
         CloseableHttpClient httpClient = HttpClients.custom().setDefaultCookieStore(cookieStore).build();
         HttpPost httpPost = new HttpPost(loginURL);
         Map<String, String> loginMap = new HashMap<>();
@@ -38,11 +41,10 @@ public class DataService {
         loginMap.put("password","123456");
         formMap.put("moteui", "all");
         formMap.put("current", "0");
-        formMap.put("limit", "10");
+        formMap.put("limit", "1");
         formMap.put("TerminalTypeId", "4");
-//        formMap.put("EUI", "3853014414640001");
+        formMap.put("EUI", "3853014414640001");
         CloseableHttpResponse response = null;
-        String result = null;
         try{
             List<NameValuePair> list = new ArrayList<>();
             Iterator<Map.Entry<String, String>> loginMapIterator = loginMap.entrySet().iterator();
@@ -58,41 +60,46 @@ public class DataService {
             response = httpClient.execute(httpPost);
             System.out.println("登陆请求结果为：" + response.getStatusLine().getStatusCode());
             List<Cookie> cookies = cookieStore.getCookies();
-            System.out.println(cookies.get(0));
             list.clear();
+            httpPost = new HttpPost(dataURL);
             while (formMapIterator.hasNext()) {
                 Map.Entry<String, String> elem = formMapIterator.next();
                 list.add(new BasicNameValuePair(elem.getKey(), elem.getValue()));
             }
             if (list.size() > 0) {
-                UrlEncodedFormEntity loginEntity = new UrlEncodedFormEntity(list, "UTF-8");
-                httpPost.setEntity(loginEntity);
+                UrlEncodedFormEntity dataEntity = new UrlEncodedFormEntity(list, "UTF-8");
+                httpPost.setEntity(dataEntity);
             }
-
-            URI uri = new URI(dataURL);
-            httpPost = new HttpPost(dataURL);
+            Gson gson = new Gson();
             httpPost.setHeader("Cookies",cookies.get(0).toString());
             while (true){
-//                httpPost.setURI(uri);
-//                httpPost.setHeader("Cookies",cookies.get(0).toString());
                 response = httpClient.execute(httpPost);
                 if (response.getStatusLine().getStatusCode() == 200) {
-                    HttpEntity resEntity = response.getEntity();
-                    String message = EntityUtils.toString(resEntity, "utf-8");
-                    System.out.println(message);
+                    HttpEntity responseEntity = response.getEntity();
+                    String message = EntityUtils.toString(responseEntity, "utf-8");
+                    ArrayList<Data> dataArrayList = gson.fromJson(message,new TypeToken<ArrayList<Data>>() {}.getType());
+                    Data data = dataArrayList.get(0);
+                    EntityUtils.consume(responseEntity);
+//                    System.out.println(message);
+                    String payloadbase64 = data.getPayloadbase64();
+                    String status = payloadbase64.substring(18,20) == "00"?"关盖":"开盖";
+
+                    System.out.println("TypeName: " + data.getTypeName() +", " +"moteeui: " + data.getMoteeui() + ", " + "status: " + status);
                 } else {
                     System.out.println("请求失败");
                     System.out.println(response.getStatusLine().getStatusCode());
                 }
-//                System.out.println(response.getEntity().getContent());
-//                httpPost.releaseConnection();
                 Thread.sleep(2000);
             }
-//            while (true){
-//                httpPost.setHeader("Cookies",cookies.get(0).toString());
-//            }
         }catch (Exception e){
             e.printStackTrace();
+        }finally {
+            try{
+                response.close();
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+
         }
 
 
