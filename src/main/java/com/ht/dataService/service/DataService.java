@@ -1,7 +1,5 @@
 package com.ht.dataService.service;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.ht.dataService.model.Data;
@@ -10,20 +8,19 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.cookie.Cookie;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
+import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.net.URI;
 import java.util.*;
 
 
@@ -47,8 +44,22 @@ public class DataService {
     private String loginURL;
     @Value(value = "${postParam.dataURL}")
     private String dataURL;
+    @Value(value = "${mqtt.broker}")
+    String broker;
+    @Value(value = "${mqtt.clientId}")
+    String clientId;
+    @Value(value = "${mqtt.topicName}")
+    String topicName;
     @PostConstruct
     public void run(){
+        //mqtt相关配置
+        MqttClient client;
+        MqttTopic topic;
+
+        MqttMessage mqttMessage = new MqttMessage();
+        MemoryPersistence persistence = new MemoryPersistence();
+
+        //HTTP client相关配置
         CookieStore cookieStore = new BasicCookieStore();
         CloseableHttpClient httpClient = HttpClients.custom().setDefaultCookieStore(cookieStore).build();
         HttpPost httpPost = new HttpPost(loginURL);
@@ -92,16 +103,36 @@ public class DataService {
             while (true){
                 response = httpClient.execute(httpPost);
                 if (response.getStatusLine().getStatusCode() == 200) {
+                    //解析数据
                     HttpEntity responseEntity = response.getEntity();
                     String message = EntityUtils.toString(responseEntity, "utf-8");
                     ArrayList<Data> dataArrayList = gson.fromJson(message,new TypeToken<ArrayList<Data>>() {}.getType());
                     Data data = dataArrayList.get(0);
+                    String dataJson = gson.toJson(data);
                     EntityUtils.consume(responseEntity);
-//                    System.out.println(message);
                     String payloadbase64 = data.getPayloadbase64();
                     String status = payloadbase64.substring(18,20) == "00"?"关盖":"开盖";
-
                     System.out.println("TypeName: " + data.getTypeName() +", " +"moteeui: " + data.getMoteeui() + ", " + "status: " + status);
+                    //MQTT测试数据
+                    //向MQTT推送数据
+                    client = new MqttClient(broker, clientId, persistence);
+                    MqttConnectOptions options = new MqttConnectOptions();
+                    options.setCleanSession(true);
+                    options.setConnectionTimeout(10);
+                    options.setKeepAliveInterval(20);
+                    options.setUserName("admin");
+                    options.setPassword("Ht@123456".toCharArray());
+                    System.out.println("正在连接MQTT: " + broker + " ......");
+                    client.connect(options);
+                    System.out.println("连接成功！");
+                    topic = client.getTopic(topicName);
+
+                    mqttMessage.setQos(1);
+                    mqttMessage.setRetained(false);
+                    MqttToken token =topic.publish(mqttMessage);
+                    token.waitForCompletion();
+                    //释放资源
+                    httpPost.releaseConnection();
                 } else {
                     System.out.println("请求失败");
                     System.out.println(response.getStatusLine().getStatusCode());
