@@ -19,6 +19,7 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -28,22 +29,38 @@ import java.util.*;
 
 @Service
 public class DataService {
+    @Value(value = "${login.code}")
+    private String code;
+    @Value(value = "${login.password}")
+    private String password;
+    @Value(value = "${postParam.moteui}")
+    private String moteui;
+    @Value(value = "${postParam.current}")
+    private String current;
+    @Value(value = "${postParam.limit}")
+    private String limit;
+    @Value(value = "${postParam.TerminalTypeId}")
+    private String TerminalTypeId;
+    @Value(value = "${postParam.EUI}")
+    private String EUI;
+    @Value(value = "${postParam.loginURL}")
+    private String loginURL;
+    @Value(value = "${postParam.dataURL}")
+    private String dataURL;
     @PostConstruct
     public void run(){
-        String loginURL = "https://jinggai.bxzykj.com/hanhai/login/loginCheck";
-        String dataURL = "https://jinggai.bxzykj.com/hanhai/getOtherLogsList";
         CookieStore cookieStore = new BasicCookieStore();
         CloseableHttpClient httpClient = HttpClients.custom().setDefaultCookieStore(cookieStore).build();
         HttpPost httpPost = new HttpPost(loginURL);
         Map<String, String> loginMap = new HashMap<>();
         Map<String, String> formMap = new HashMap<>();
-        loginMap.put("code","test123");
-        loginMap.put("password","123456");
-        formMap.put("moteui", "all");
-        formMap.put("current", "0");
-        formMap.put("limit", "1");
-        formMap.put("TerminalTypeId", "4");
-        formMap.put("EUI", "3853014414640001");
+        loginMap.put("code",code);
+        loginMap.put("password",password);
+        formMap.put("moteui", moteui);
+        formMap.put("current", current);
+        formMap.put("limit", limit);
+        formMap.put("TerminalTypeId", TerminalTypeId);
+        formMap.put("EUI", EUI);
         CloseableHttpResponse response = null;
         try{
             List<NameValuePair> list = new ArrayList<>();
